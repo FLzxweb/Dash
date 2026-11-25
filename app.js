@@ -1,0 +1,100 @@
+/* ===== CONFIGURACIÓN =====
+   Pega aquí tu "ID de cliente" de Google (Google Cloud > Credenciales > OAuth Web).
+   Si lo dejas vacío, el botón de Google funciona en modo demostración (solo nombre local). */
+const GOOGLE_CLIENT_ID='';
+const SESSION_KEY='inv2:session',COOKIE_KEY='inv2:cookies';
+
+(function(){
+var $=s=>document.querySelector(s),esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),
+money=n=>new Intl.NumberFormat('es-EC',{style:'currency',currency:'USD'}).format(n||0);
+var P={noche:{n:'Noche violeta',bg:'#0f1226',pan:'#171b35',ink:'#e8ebff',c1:'#a35df0',c2:'#22e1d6',c3:'#e857c8'},
+oceano:{n:'Océano calmo',bg:'#0e1a22',pan:'#15262f',ink:'#dcecf2',c1:'#4fa3d8',c2:'#5fd0b8',c3:'#7a8cf0'},
+bosque:{n:'Bosque suave',bg:'#121c18',pan:'#1a2822',ink:'#e0eee7',c1:'#6fbf9a',c2:'#d4b36a',c3:'#8fb7d8'},
+claro:{n:'Claro minimal',bg:'#f2f4f8',pan:'#ffffff',ink:'#1f2540',c1:'#7b5cf0',c2:'#20bfb4',c3:'#e0529c'}};
+var D,K='',ctx,q='',fs='';
+var def=()=>({prof:{name:'',store:'Mi tienda',img:''},th:{p:'noche',o:{}},sound:true,fx:true,secs:['General'],prods:[],mov:[],users:[],tab:'home'});
+D=def();
+var COL=['var(--c1)','var(--c2)','var(--c3)','color-mix(in srgb,var(--c1),var(--c2))','color-mix(in srgb,var(--c2),var(--c3))','color-mix(in srgb,var(--c1),var(--c3))'];
+function theme(){var c=Object.assign({},P[D.th.p]||P.noche,D.th.o),r=document.documentElement.style;['bg','pan','ink','c1','c2','c3'].forEach(k=>{if(/^#[0-9a-f]{6}$/i.test(c[k]))r.setProperty('--'+k,c[k])});document.body.classList.toggle('nofx',!D.fx)}
+function save(){try{localStorage.setItem(K,JSON.stringify(D))}catch(e){}}
+function load(){D=def();try{var d=JSON.parse(localStorage.getItem(K)||'null');if(d)D=Object.assign(D,d)}catch(e){}if(!D.secs||!D.secs.length)D.secs=['General']}
+function beep(f,d,t){if(!D.sound)return;try{ctx=ctx||new(window.AudioContext||window.webkitAudioContext)();var o=ctx.createOscillator(),g=ctx.createGain();o.type=t||'sine';o.frequency.value=f;g.gain.setValueAtTime(.05,ctx.currentTime);g.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+d);o.connect(g);g.connect(ctx.destination);o.start();o.stop(ctx.currentTime+d)}catch(e){}}
+var click=()=>beep(520,.08),ok=()=>{beep(660,.12);setTimeout(()=>beep(880,.16),90)},bad=()=>beep(300,.2,'triangle');
+function toast(t){var d=document.createElement('div');d.className='toast';d.textContent=t;document.body.appendChild(d);setTimeout(()=>d.remove(),2200)}
+function rs(f,cb){var r=new FileReader();r.onload=()=>{var im=new Image();im.onload=()=>{var c=document.createElement('canvas'),s=Math.min(1,160/Math.max(im.width,im.height));c.width=im.width*s;c.height=im.height*s;c.getContext('2d').drawImage(im,0,0,c.width,c.height);cb(c.toDataURL('image/jpeg',.72))};im.src=r.result};r.readAsDataURL(f)}
+var safe=s=>s&&String(s).indexOf('data:image/')==0?s:'';
+var pimg=p=>safe(p.img)?`<img src="${safe(p.img)}" alt="">`:`<span>${esc((p.name||'?')[0])}</span>`;
+
+/* datos */
+function T(){var t={sv:0,pot:0,units:0,rev:0,cost:0,spent:0,loss:0};D.prods.forEach(p=>{t.sv+=p.stock*p.cost;t.pot+=p.stock*p.price;t.units+=p.stock});
+D.mov.forEach(m=>{if(m.type=='sell'){t.rev+=m.qty*m.u;t.cost+=m.qty*m.c}else if(m.type=='buy')t.spent+=m.qty*m.u;else t.loss+=m.qty*m.c});t.gain=t.rev-t.cost;t.net=t.gain-t.loss;return t}
+function months(f){var n=new Date(),a=[],l=[];for(var i=6;i>=0;i--){var d=new Date(n.getFullYear(),n.getMonth()-i,1);l.push(d.toLocaleDateString('es',{month:'short'}));a.push(D.mov.filter(m=>{var x=new Date(m.t);return x.getMonth()==d.getMonth()&&x.getFullYear()==d.getFullYear()}).reduce((s,m)=>s+f(m),0))}return[a,l]}
+function wk(){var w=[0,0,0,0,0,0,0];D.mov.forEach(m=>{if(m.type=='sell')w[(new Date(m.t).getDay()+6)%7]+=m.qty*m.u});return w}
+var pn=id=>(D.prods.find(p=>p.id==id)||{name:'(eliminado)'}).name;
+var chg=(a,b)=>b?Math.round((a-b)/b*100):0;
+
+/* gráficos */
+var sm=pts=>pts.map((p,i)=>{if(!i)return'M'+p[0]+' '+p[1];var o=pts[i-1],mx=(o[0]+p[0])/2;return`C${mx} ${o[1]} ${mx} ${p[1]} ${p[0]} ${p[1]}`}).join(' ');
+function line(ss,lb){var W=640,H=250,L=40,B=26,mx=Math.max(1,...ss.flat()),x=i=>L+i*(W-L-12)/(lb.length-1),y=v=>H-B-v/mx*(H-B-26),g='';
+for(var i=0;i<5;i++){var v=mx*i/4;g+=`<line x1="${L}" x2="${W-12}" y1="${y(v)}" y2="${y(v)}" stroke="var(--ln)"/><text x="0" y="${y(v)+4}">${Math.round(v)}</text>`}
+lb.forEach((l,i)=>g+=`<text x="${x(i)}" y="${H-6}" text-anchor="middle">${esc(l)}</text>`);
+ss.forEach((s,k)=>{var d=sm(s.map((v,i)=>[x(i),y(v)]));g+=k?`<path d="${d}" fill="none" stroke="var(--c1)" stroke-width="3" stroke-dasharray="2 7" stroke-linecap="round"/>`:`<path d="${d}" pathLength="1" class="dr" fill="none" stroke="var(--c2)" stroke-width="3" stroke-linecap="round"/>`});
+var s0=ss[0],m0=Math.max(...s0);if(m0>0){var i0=s0.indexOf(m0),cx=x(i0),cy=y(m0),tx=Math.min(Math.max(cx,56),W-70);g+=`<circle cx="${cx}" cy="${cy}" r="5" fill="var(--c2)"/><rect x="${tx-52}" y="${cy-34}" width="104" height="22" rx="7" fill="var(--c1)"/><text x="${tx}" y="${cy-19}" text-anchor="middle" style="fill:#fff;font-weight:700">Máx = ${money(m0)}</text>`}
+return`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Compras y ventas por mes">${g}</svg>`}
+function area(v){var W=400,H=150,mx=Math.max(1,...v),p=v.map((a,i)=>[i*W/(v.length-1),H-10-a/mx*(H-34)]);
+return`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Ganancia por mes"><defs><linearGradient id="ag" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--c2);stop-opacity:.75"/><stop offset="1" style="stop-color:var(--c1);stop-opacity:0"/></linearGradient></defs><path d="${sm(p)} L${W} ${H} L0 ${H}Z" fill="url(#ag)"/><path d="${sm(p)}" pathLength="1" class="dr" fill="none" stroke="var(--c2)" stroke-width="2.5"/></svg>`}
+function donut(ps,ct){var tot=ps.reduce((s,p)=>s+p.v,0),c=0,r='<svg viewBox="0 0 120 120" width="100%" style="max-width:170px" role="img"><circle cx="60" cy="60" r="44" fill="none" stroke="var(--ln)" stroke-width="14"/>';
+if(tot)ps.forEach(p=>{var a=p.v/tot*100,b=Math.max(a-1.5,0);r+=`<circle cx="60" cy="60" r="44" fill="none" stroke="${p.c}" stroke-width="14" pathLength="100" stroke-dasharray="${b} ${100-b}" stroke-dashoffset="${-c}" transform="rotate(-90 60 60)" stroke-linecap="round"/>`;c+=a});
+return r+`<text x="60" y="64" text-anchor="middle" style="fill:var(--ink);font-size:11px;font-weight:700">${esc(ct)}</text></svg>`}
+var legend=ps=>ps.map(p=>`<div class="lgd"><i style="background:${p.c}"></i>${esc(p.l)}<b>${esc(p.t==null?p.v:p.t)}</b></div>`).join('');
+function bars(v,lb){var W=400,H=190,mx=Math.max(1,...v),n=v.length,bw=Math.min(34,W/n-10),g='<defs><linearGradient id="bg1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--c2)"/><stop offset="1" style="stop-color:var(--c1)"/></linearGradient></defs>';
+for(var i=0;i<4;i++)g+=`<line x1="0" x2="${W}" y1="${10+i*40}" y2="${10+i*40}" stroke="var(--ln)"/>`;
+v.forEach((a,i)=>{var h=a/mx*140,x=i*W/n+(W/n-bw)/2;g+=`<rect class="bar" x="${x}" y="${150-h}" width="${bw}" height="${Math.max(h,2)}" rx="7" fill="url(#bg1)" style="animation-delay:${i*70}ms"><title>${esc(lb[i])}: ${money(a)}</title></rect><text x="${x+bw/2}" y="172" text-anchor="middle">${esc(String(lb[i]).slice(0,6))}</text>`});
+return`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Gráfico de barras">${g}</svg>`}
+function secDonut(){var ps=D.secs.map((s,i)=>({l:s,v:Math.round(D.prods.filter(p=>p.sec==s).reduce((x,p)=>x+p.stock*p.cost,0)),c:COL[i%6]}));ps.forEach(p=>p.t=money(p.v));return`<div class="dn"><div>${donut(ps,'Almacén')}</div><div>${legend(ps)}</div></div>`}
+
+/* vistas */
+var TABS=[['home','Home'],['alm','Almacén'],['com','Compras'],['ven','Ventas'],['gra','Gráficos'],['usu','Usuarios'],['per','Perfil'],['cfg','Configuración']];
+function loginView(){$('#app').innerHTML=`<div class="lg0"><div class="lbox"><div class="mk"></div><h1>Mi Inventario</h1><p>Stock, compras, ventas y ganancias en un solo lugar.</p>
+<input id="nm" placeholder="Tu nombre" aria-label="Tu nombre">
+<div class="ck"><input type="checkbox" id="c1"><label for="c1">He leído y acepto los <a href="#terminos" data-a="leg" data-i="terminos">Términos y condiciones</a>.</label></div>
+<div class="ck"><input type="checkbox" id="c2"><label for="c2">He leído y acepto la <a href="#privacidad" data-a="leg" data-i="privacidad">Política de privacidad</a>, el uso de <a href="#cookies" data-a="leg" data-i="cookies">cookies</a> y conozco mis <a href="#derechos" data-a="leg" data-i="derechos">derechos</a>.</label></div>
+<div id="gh" style="display:flex;justify-content:center;margin-top:12px"></div>
+<button class="gb" id="gdemo" data-a="go" disabled><svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17.5z"/><path fill="#FBBC05" d="M10.5 28.7a14.5 14.5 0 0 1 0-9.4l-7.9-6.1a24 24 0 0 0 0 21.6l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.8 2.3-8.4 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>Continuar con Google</button>
+<button class="gh" data-a="gu" disabled>Entrar como invitado</button>
+<div class="lk" style="justify-content:center;margin-top:14px">${legalLinks()}</div></div></div>`;gate();gInit()}
+function okc(){var a=$('#c1'),b=$('#c2');if(a&&b&&a.checked&&b.checked)return true;bad();toast('Marca las 2 casillas para continuar');return false}
+function gate(){var a=$('#c1'),b=$('#c2');if(!a||!b)return;var on=a.checked&&b.checked;document.querySelectorAll('[data-a=go],[data-a=gu]').forEach(x=>x.disabled=!on)}
+function jwt(t){try{var p=t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');return JSON.parse(decodeURIComponent(escape(atob(p))))}catch(e){return null}}
+function gInit(){if(!GOOGLE_CLIENT_ID)return;$('#nm').style.display='none';$('#gdemo').style.display='none';
+var go=()=>{google.accounts.id.initialize({client_id:GOOGLE_CLIENT_ID,callback:r=>{if(!okc())return;var u=jwt(r.credential);if(!u||!u.sub){bad();toast('No se pudo iniciar sesión con Google');return}start(u.name||u.email||'Usuario','inv2:g:'+u.sub,0)}});google.accounts.id.renderButton($('#gh'),{theme:'filled_black',size:'large',shape:'pill',text:'continue_with',width:300})};
+if(window.google&&google.accounts)go();else{var s=document.createElement('script');s.src='https://accounts.google.com/gsi/client';s.async=true;s.onload=go;s.onerror=()=>toast('No se pudo cargar Google');document.head.appendChild(s)}}
+/* ===== Legal y cookies ===== */
+var LEGAL={
+terminos:['Términos y condiciones',`<p><i>Última actualización: 24 de noviembre de 2026.</i></p><h4>1. Objeto</h4><p>Mi Inventario es una herramienta para registrar productos, compras, ventas, pérdidas y ver resúmenes y gráficos. Al usarla aceptas estos términos.</p><h4>2. Uso</h4><p>Debes tener capacidad legal para aceptarlos. Eres responsable de la información que ingresas y de que tus registros sean correctos. La herramienta no sustituye asesoría contable ni tributaria.</p><h4>3. Cuenta e invitado</h4><p>Puedes entrar con Google o como invitado. En ambos casos tus datos se guardan en este navegador y dispositivo.</p><h4>4. Respaldo de datos</h4><p>Si borras los datos del navegador o cambias de dispositivo, la información puede perderse. Descarga periódicamente tu reporte CSV.</p><h4>5. Responsabilidad</h4><p>El servicio se ofrece “tal cual”, sin garantía de disponibilidad continua. [TU NOMBRE O EMPRESA] no responde por pérdida de datos ni por decisiones tomadas con la información mostrada.</p><h4>6. Propiedad intelectual</h4><p>El diseño y el código pertenecen a [TU NOMBRE O EMPRESA]. Tus datos siguen siendo tuyos.</p><h4>7. Cambios y ley aplicable</h4><p>Podemos actualizar estos términos y avisaremos en la propia web. Se rigen por las leyes de [TU PAÍS]. Contacto: [TU CORREO].</p>`],
+privacidad:['Política de privacidad',`<p><i>Última actualización: 24 de noviembre de 2026.</i></p><h4>Responsable</h4><p>[TU NOMBRE O EMPRESA], contacto: [TU CORREO].</p><h4>Datos que tratamos</h4><p>Tu nombre y, si entras con Google, tu nombre, correo e identificador de cuenta. También lo que registras: productos, imágenes, movimientos, usuarios y preferencias.</p><h4>Dónde se guardan</h4><p>En el almacenamiento local de tu navegador. No se envían a servidores propios. Si más adelante se añade una base de datos en la nube, esta política se actualizará.</p><h4>Finalidad y base legal</h4><p>Permitir tu sesión y el funcionamiento de la herramienta, con tu consentimiento al marcar la casilla de aceptación.</p><h4>Terceros</h4><p>Google (inicio de sesión y fuentes tipográficas) trata datos según sus propias políticas. No vendemos ni cedemos tus datos.</p><h4>Conservación y seguridad</h4><p>Se conservan hasta que los borres o limpies tu navegador. No compartas tu dispositivo con personas no autorizadas.</p><h4>Menores</h4><p>El servicio no está dirigido a menores de edad.</p><h4>Normativa</h4><p>Tratamos los datos conforme a la ley de protección de datos de [TU PAÍS] (por ejemplo, la Ley Orgánica de Protección de Datos Personales en Ecuador).</p>`],
+cookies:['Política de cookies',`<p><i>Última actualización: 24 de noviembre de 2026.</i></p><h4>Qué usamos</h4><p>Usamos almacenamiento local del navegador (similar a las cookies) para guardar tu sesión, tus datos, tu paleta de colores y tu elección sobre cookies. Son necesarios para que la web funcione.</p><h4>De terceros</h4><p>Si inicias sesión con Google se carga el servicio de Google, que puede usar sus propias cookies. También se cargan fuentes de Google Fonts.</p><h4>Publicidad y analítica</h4><p>No usamos cookies de publicidad ni de seguimiento. [Ajusta esta sección si agregas analítica.]</p><h4>Cómo gestionarlas</h4><p>Puedes cambiar tu elección borrando los datos del sitio en tu navegador; el aviso volverá a aparecer.</p>`],
+derechos:['Tus derechos',`<p>Sobre tus datos personales tienes derecho a:</p><h4>Acceso y portabilidad</h4><p>Ver tus datos en la propia web y descargarlos en CSV desde Inicio > Descargar.</p><h4>Rectificación</h4><p>Editar tu perfil, productos y registros cuando quieras.</p><h4>Eliminación</h4><p>Configuración > “Borrar mis datos”, y también puedes limpiar los datos del sitio en tu navegador.</p><h4>Oposición, limitación y retirada del consentimiento</h4><p>Puedes dejar de usar la web y cerrar sesión en cualquier momento. Para otras solicitudes escribe a [TU CORREO].</p><h4>Reclamos</h4><p>Puedes presentar un reclamo ante la autoridad de protección de datos de [TU PAÍS].</p>`]};
+var LSHORT={terminos:'Términos',privacidad:'Privacidad',cookies:'Cookies',derechos:'Derechos'};
+var legalLinks=()=>Object.keys(LSHORT).map(k=>`<a href="#${k}" data-a="leg" data-i="${k}">${LSHORT[k]}</a>`).join('');
+function legal(k){var L=LEGAL[k];if(!L)return;document.querySelectorAll('.ov.lgl').forEach(x=>x.remove());var o=document.createElement('div');o.className='ov lgl';
+o.innerHTML=`<div class="md lgl" role="dialog" aria-label="${esc(L[0])}"><h3>${esc(L[0])}</h3><div class="lt">${L[1]}</div><div class="r"><button id="lc">Cerrar</button></div></div>`;document.body.appendChild(o);
+try{history.replaceState(null,'','#'+k)}catch(e){}
+var c=()=>{o.remove();try{history.replaceState(null,'',location.pathname+location.search)}catch(e){}};
+o.querySelector('#lc').onclick=c;o.onclick=e=>{if(e.target===o)c()};o.addEventListener('keydown',e=>{if(e.key=='Escape')c()});o.querySelector('#lc').focus()}
+function route(){var k=(location.hash||'').slice(1);if(LEGAL[k])legal(k)}
+function cookieBar(){var v=null;try{v=localStorage.getItem(COOKIE_KEY)}catch(e){}if(v)return;var b=document.createElement('div');b.className='cb';b.setAttribute('role','dialog');b.setAttribute('aria-label','Cookies');
+b.innerHTML=`<p>Usamos almacenamiento local necesario para guardar tu sesión y tus datos. Más información en la <a href="#cookies" data-a="leg" data-i="cookies" style="color:var(--c2)">política de cookies</a>.</p><div class="ac"><button class="sm" data-a="cka">Aceptar</button><button class="sm gh" data-a="ckn">Solo necesarias</button></div>`;document.body.appendChild(b)}
+function cookie(v){try{localStorage.setItem(COOKIE_KEY,v)}catch(e){}var b=$('.cb');if(b)b.remove();toast('Preferencia guardada')}
+function start(n,k,g,quiet){K=k;load();if(!D.prof.name)D.prof.name=n;D.guest=g;try{localStorage.setItem(SESSION_KEY,JSON.stringify({n:n,k:k,g:g}))}catch(e){}theme();if(!quiet)ok();view()}
+function view(){var t=D.tab,h={home,alm,com,ven,gra,usu,per,cfg}[t]();
+$('#app').innerHTML=`<div class="shell"><aside><h1>${esc(D.prof.store||'Mi Inventario')}</h1>${TABS.map(a=>`<button class="nv${a[0]==t?' on':''}" data-a="tab" data-i="${a[0]}">${a[1]}</button>`).join('')}<div class="us">${esc(D.prof.name)}${D.guest?' · invitado':''}<br><button class="gh sm" data-a="out" style="margin-top:8px">Salir</button></div><div class="us lk">${legalLinks()}</div></aside><section class="vw">${h}</section></div>`}
+function home(){var t=T(),[a,l]=months(m=>m.type=='sell'?m.qty*m.u:0),[b]=months(m=>m.type=='buy'?m.qty*m.u:0),[g]=months(m=>m.type=='sell'?m.qty*(m.u-m.c):m.type=='lose'?-m.qty*m.c:0),cs=chg(a[6],a[5]),cb=chg(b[6],b[5]),pc=x=>`<span class="pc${x<0?' n':''}">${x>0?'+':''}${x}%</span>`,
+w=D.mov.length?'':'<div class="em">Aún no hay movimientos. Agrega productos en Almacén y registra compras o ventas.</div>';
+return`<div class="top"><h2>Resumen general</h2><button class="sm" data-a="ap">+ Producto</button></div><div class="hm"><div class="col"><div class="r3"><div class="kp" style="--g:linear-gradient(135deg,var(--c3),var(--c1))"><small>Ganancia neta</small><b>${money(t.net)}</b><small>ventas − costo − pérdidas</small></div><div class="kp" style="--g:linear-gradient(135deg,var(--c2),var(--c1))"><small>Valor en almacén</small><b>${money(t.sv)}</b><small>${t.units} unidades</small></div><div class="card pl"><div><i></i><span>Ventas</span>${pc(cs)}</div><div><i></i><span>Compras</span>${pc(cb)}</div></div></div>
+<div class="card"><h3>Compras vs ventas</h3><div class="lgd" style="margin-bottom:4px"><i style="background:var(--c2)"></i>Ventas<i style="background:var(--c1)"></i>Compras</div>${line([a,b],l)}${w}</div>
+<div class="r2"><div class="card"><h3>Stock por sección</h3>${secDonut()}</div><div class="card"><h3>Ventas vs pérdidas</h3><div class="dn"><div>${donut([{v:Math.round(t.gain),c:'var(--c2)'},{v:Math.round(t.loss),c:'var(--c3)'}],money(t.net))}</div><div>${legend([{l:'Ganancia',v:0,t:money(t.gain),c:'var(--c2)'},{l:'Pérdidas',v:0,t:money(t.loss),c:'var(--c3)'},{l:'Invertido',v:0,t:money(t.spent),c:'var(--c1)'}])}</div></div></div></div></div>
+<div class="col"><div class="card"><h3>Ganancia por mes</h3>${area(g)}<button class="gh sm" data-a="tab" data-i="gra" style="width:100%;margin-top:8px">Ver gráficos</button></div><div class="card"><h3>Ventas por día de la semana</h3>${bars(wk(),['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'])}</div><div class="card"><h3>Reporte completo</h3><p style="color:var(--mute);margin:0 0 10px">Todos tus movimientos en CSV.</p><button data-a="dl" style="width:100%">Descargar</button></div></div></div>`}
+function alm(){var ps=D.prods.filter(p=>p.name.toLowerCase().includes(q)&&(!fs||p.sec==fs));
+return`<div class="top"><h2>Almacén</h2><button class="gh sm" data-a="as">+ Sección</button><button class="sm" data-a="ap">+ Producto</button></div><input id="sr" placeholder="Buscar producto…" value="${esc(q)}" style="margin-bottom:12px" aria-label="Buscar"><div class="chips"><button class="${fs?'':'on'}" data-a="fs" data-i="">Todas</button>${D.secs.map((s,i)=>`<button class="${fs==s?'on':''}" data-a="fs" data-i="${esc(s)}">${esc(s)}</button>${i?`<button class="sm gh" data-a="ds" data-i="${i}" title="Eliminar sección" aria-label="Eliminar ${esc(s)}">✕</button>`:''}`).join('')}</div>
+<div class="gd">${ps.map(p
